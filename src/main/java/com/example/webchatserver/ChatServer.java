@@ -5,114 +5,95 @@ import jakarta.websocket.*;
 import jakarta.websocket.server.PathParam;
 import jakarta.websocket.server.ServerEndpoint;
 import org.json.JSONObject;
-import static com.example.webchatserver.ChatRoom.loadChatRoomHistory;
-import static com.example.webchatserver.ChatRoom.saveChatRoomHistory;
+
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
 
 /**
  * This class represents a web socket server, a new connection is created and it receives a roomID as a parameter
  * **/
 @ServerEndpoint(value="/ws/{roomID}")
 public class ChatServer {
+    // contains a static List of ChatRoom used to control the existing rooms and their users
+    private static Map<String, ChatRoom> chatRooms = new HashMap<>();
 
-    private Map<String, String> users = new HashMap<String, String>();
-    private static Map<String, String> roomList = new HashMap<String, String>();
-    private static Map<String, String> roomHistoryList = new HashMap<String, String>();
+    // you may add other attributes as you see fit
+
     @OnOpen
     public void open(@PathParam("roomID") String roomID, Session session) throws IOException, EncodeException {
-        roomList.put(session.getId(), roomID); // adding userID to a room
-        // loading the history chat
-        String history = loadChatRoomHistory(roomID);
-        System.out.println("Room joined ");
-        if (history!=null && !(history.isBlank())){
-            System.out.println(history);
-            history = history.replaceAll(System.lineSeparator(), "\\\n");
-            System.out.println(history);
-            session.getBasicRemote().sendText("{\"type\": \"chat\", \"message\":\""+history+" \\n Chat room history loaded\"}");
-            roomHistoryList.put(roomID, history+" \\n "+roomID + " room resumed.");
-        }
-        if(!roomHistoryList.containsKey(roomID)) { // only if this room has no history yet
-            roomHistoryList.put(roomID, roomID + " room Created."); //initiating the room history
+        // check if the chat room exists
+        ChatRoom chatRoom = chatRooms.get(roomID);
+        if (chatRoom == null) {
+            // create a new chat room
+            chatRoom = new ChatRoom(roomID, session.getId());
+            chatRooms.put(roomID, chatRoom);
+        } else {
+            // add the user to the existing chat room
+            chatRoom.getUsers().put(session.getId(), "");
         }
 
-        session.getBasicRemote().sendText("{\"type\": \"chat\", \"message\":\"(Server ): Welcome to the chat room. Please state your username to begin.\"}");
+        // send a message to the client to confirm they have joined the room
+        session.getBasicRemote().sendText("You have joined the room: " + roomID);
     }
-
     @OnClose
     public void close(Session session) throws IOException, EncodeException {
-        String userId = session.getId();
-        if (users.containsKey(userId)) {
-            String username = users.get(userId);
-            String roomID = roomList.get(userId);
-            users.remove(userId);
-            // remove this user from the roomList
-            roomList.remove(roomID);
-
-            // adding event to the history of the room
-            String logHistory = roomHistoryList.get(roomID);
-            roomHistoryList.put(roomID, logHistory+" \\n " + username + " left the chat room.");
-
-            // broadcasting it to peers in the same room
-            int countPeers = 0;
-            for (Session peer : session.getOpenSessions()){ //broadcast this person left the server
-                if(roomList.get(peer.getId()).equals(roomID)) { // broadcast only to those in the same room
-                    peer.getBasicRemote().sendText("{\"type\": \"chat\", \"message\":\"(Server): " + username + " left the chat room.\"}");
-                    countPeers++; // count how many peers are left in the room
-                }
-            }
-
-            // if everyone in the room left, save history
-            if(!(countPeers >0)){
-                saveChatRoomHistory(roomID, roomHistoryList.get(roomID));
+        // find the chat room the user belongs to and remove the user
+        for (ChatRoom chatRoom : chatRooms.values()) {
+            if (chatRoom.getUsers().containsKey(session.getId())) {
+                chatRoom.getUsers().remove(session.getId());
+                break;
             }
         }
     }
 
     @OnMessage
     public void handleMessage(String comm, Session session) throws IOException, EncodeException {
-        String userID = session.getId(); // my id
-        String roomID = roomList.get(userID); // my room
+        // find the chat room the user belongs to
+        ChatRoom chatRoom = null;
+        for (ChatRoom cr : chatRooms.values()) {
+            if (cr.getUsers().containsKey(session.getId())) {
+                chatRoom = cr;
+                break;
+            }
+        }
+        if (chatRoom == null) {
+            // if the user is not in any chat room, do nothing
+            return;
+        }
+
+        // handle the message
         JSONObject jsonmsg = new JSONObject(comm);
-        String type = (String) jsonmsg.get("type");
-        String message = (String) jsonmsg.get("msg");
-
-        if(users.containsKey(userID)){ // not their first message
-            String username = users.get(userID);
-            System.out.println(username);
-
-            // adding event to the history of the room
-            String logHistory = roomHistoryList.get(roomID);
-            roomHistoryList.put(roomID, logHistory+" \\n " +"(" + username + "): " + message);
-
-            // broadcasting it to peers in the same room
-            for(Session peer: session.getOpenSessions()){
-                // only send my messages to those in the same room
-                if(roomList.get(peer.getId()).equals(roomID)) {
-                    peer.getBasicRemote().sendText("{\"type\": \"chat\", \"message\":\"(" + username + "): " + message + "\"}");
+        String type = jsonmsg.getString("type");
+        if (type.equals("username")) {
+            // update the user's name in the chat room
+            String username = jsonmsg.getString("username");
+            chatRoom.getUsers().put(session.getId(), username);
+            // notify all users in the chat room that the user's name has been updated
+            JSONObject updateMsg = new JSONObject();
+            updateMsg.put("type", "update");
+            updateMsg.put("user", session.getId());
+            updateMsg.put("username", username);
+            for (Session s : session.getOpenSessions()) {
+                if (chatRoom.getUsers().containsKey(s.getId())) {
+                    s.getBasicRemote().sendText(updateMsg.toString());
                 }
             }
-        }else{ //first message is their username
-            users.put(userID, message);
-            session.getBasicRemote().sendText("{\"type\": \"chat\", \"message\":\"(Server ): Welcome, " + message + "!\"}");
-
-            // adding event to the history of the room
-            String logHistory = roomHistoryList.get(roomID);
-            roomHistoryList.put(roomID, logHistory+" \\n " + message + " joined the chat room.");
-
-            // broadcasting it to peers in the same room
-            for(Session peer: session.getOpenSessions()){
-                // only announce to those in the same room as me, excluding myself
-                if((!peer.getId().equals(userID)) && (roomList.get(peer.getId()).equals(roomID))){
-                    peer.getBasicRemote().sendText("{\"type\": \"chat\", \"message\":\"(Server): " + message + " joined the chat room.\"}");
+        } else if (type.equals("message")) {
+            // broadcast the message to all users in the chat room
+            String message = jsonmsg.getString("message");
+            String username = chatRoom.getUsers().get(session.getId());
+            JSONObject broadcastMsg = new JSONObject();
+            broadcastMsg.put("type", "broadcast");
+            broadcastMsg.put("user", session.getId());
+            broadcastMsg.put("username", username);
+            broadcastMsg.put("message", message);
+            for (Session s : session.getOpenSessions()) {
+                if (chatRoom.getUsers().containsKey(s.getId())) {
+                    s.getBasicRemote().sendText(broadcastMsg.toString());
                 }
             }
         }
-
     }
-
-
-
-
 }
