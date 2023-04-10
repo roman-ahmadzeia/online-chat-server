@@ -6,38 +6,87 @@
   <title>Chat Server</title>
   <meta name="description" content="">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+
   <meta property="og:title" content="">
   <meta property="og:type" content="">
   <meta property="og:url" content="">
   <meta property="og:image" content="">
+
   <link rel="manifest" href="site.webmanifest">
   <link rel="apple-touch-icon" href="icon.png">
+  <!-- Place favicon.ico in the root directory -->
+
   <link rel="stylesheet" href="css/normalize.css">
   <link rel="stylesheet" href="css/style.css">
+
   <meta name="theme-color" content="#fafafa">
 </head>
+
 <body>
-<div class = "home">
-  <h1> Chat Server </h1>
-  <button onclick="location.href='about.html'">About</button>
-  <button onclick ="newRoom()"> New Room </button>
+<button class="about" onclick="location.href='about.html'">About</button>
+<div class="app">
+  <div class="chat_app">
+    <div id="sidebar" class="left_sidebar">
+      <div class="logo_text">
+        <span> My <span class="colored">ChatServer</span></span>
+      </div>
+
+      <span class="user_label">Clients</span>
+      <div id="active_users_list" class="active_users_list"></div>
+    </div>
+
+    <div class="chat_area">
+      <div class="chat_bg">
+        <textarea title="Chat Log" id="log" class = "chat_bg" readonly
+                  style="display: block; width: 100%; height: 600px; resize: none; margin: 0; padding-top: 20px; padding-left:10px; border: 0;"></textarea>
+
+        <div class="chat_input">
+          <input
+                  type="text"
+                  id="messageInput"
+                  placeholder="Enter message"
+                  style="display: block;"
+                 autofocus
+          />
+          <button id="send_message_btn" class="send_message_btn" id="send">
+            SEND
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="right_sidebar">
+      <span class="room_label">Rooms</span>
+      <div id="active_rooms_list" class="active_rooms_list">
+        <select id="roomList" onchange="switchRoom(this.value)">
+          <option value="">Select a Room </option>
+        </select>
+      </div>
+
+      <div class="room_input">
+        <button onclick="newRoom()" id="room_add_icon_holder" class="room_add_icon_holder" >
+          + ROOM
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
 
-
-<div class = "availableChatRooms">
-  <h1> List Of Available Chat Rooms </h1>
-</div>
-
-<textarea title="Chat Log" id="log" readonly
-          style="display: block; width: 100%; height: 600px; resize: none; margin: 0; padding: 0; border: 0;"></textarea>
-<input title="Chat Input" id="input" type="text" style="display: block; width: 100%; border-width: 1px 0 1px 0;"
-       autofocus/>
+<!-- Add your site or application content here -->
 
 
-<script src="https://www.google-analytics.com/analytics.js" async></script>
-<script src="js/vendor/modernizr-3.11.2.min.js"></script>
-<script src="js/plugins.js"></script>
+
+
+
+
 <script src="js/main.js"></script>
+
+<!-- Google Analytics: change UA-XXXXX-Y to be your site's ID. -->
+<script>
+  window.ga = function () { ga.q.push(arguments) }; ga.q = []; ga.l = +new Date;
+  ga('create', 'UA-XXXXX-Y', 'auto'); ga('set', 'anonymizeIp', true); ga('set', 'transport', 'beacon'); ga('send', 'pageview')
+</script>
+<script src="https://www.google-analytics.com/analytics.js" async></script>
 </body>
 
 </html>
